@@ -6,14 +6,11 @@
  */
 package org.h2.server.web;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.channels.SocketChannel;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -30,22 +27,29 @@ import org.h2.util.MemoryUtils;
 import org.h2.util.NetUtils;
 import org.h2.util.StringUtils;
 
+import rubah.Rubah;
+import rubah.RubahThread;
+import rubah.UpdateRequestedException;
+import rubah.io.UpdatableInputStream;
+import rubah.io.UpdatableOutputStream;
+
 /**
  * For each connection to a session, an object of this class is created.
  * This class is used by the H2 Console.
  */
 class WebThread extends WebApp implements Runnable {
 
+    protected SocketChannel socket;
     protected OutputStream output;
-    protected Socket socket;
     private Thread thread;
-    private InputStream input;
+    private UpdatableInputStream input;
     private String ifModifiedSince;
 
-    WebThread(Socket socket, WebServer server) {
+    WebThread(SocketChannel socket, WebServer server) {
         super(server);
         this.socket = socket;
-        thread = new Thread(this, "H2 Console thread");
+        thread = new RubahThread(this);
+        thread.setName("H2 Console thread");
     }
 
     /**
@@ -88,12 +92,17 @@ class WebThread extends WebApp implements Runnable {
 
     public void run() {
         try {
-            input = new BufferedInputStream(socket.getInputStream());
-            output = new BufferedOutputStream(socket.getOutputStream());
+            input = new UpdatableInputStream(socket);
+            output = new UpdatableOutputStream(socket);
             while (!stop) {
-                if (!process()) {
-                    break;
-                }
+            		Rubah.update("process-web");
+            		try {
+            			if (!process()) {
+            				break;
+            			}
+            		} catch (UpdateRequestedException e) {
+            			continue;
+            		}
             }
         } catch (IOException e) {
             TraceSystem.traceThrowable(e);
@@ -133,7 +142,7 @@ class WebThread extends WebApp implements Runnable {
                 session = server.getSession(sessionId);
             }
             keepAlive = parseHeader();
-            String hostAddr = socket.getInetAddress().getHostAddress();
+            String hostAddr = socket.socket().getInetAddress().getHostAddress();
             file = processRequest(file, hostAddr);
             if (file.length() == 0) {
                 // asynchronous request
@@ -180,6 +189,14 @@ class WebThread extends WebApp implements Runnable {
     private String readHeaderLine() throws IOException {
         StringBuilder buff = new StringBuilder();
         while (true) {
+						if (Rubah.isUpdateRequested()) {
+							throw new UpdateRequestedException();
+						}
+						try {
+							this.input.peek();
+						} catch (rubah.io.InterruptedException e) {
+							continue;
+						}
             int i = input.read();
             if (i == -1) {
                 throw new IOException("Unexpected EOF");
@@ -406,7 +423,7 @@ class WebThread extends WebApp implements Runnable {
         }
         try {
             LoginTask login = new LoginTask();
-            Thread t = new Thread(login);
+            Thread t = new RubahThread(login);
             t.start();
         } catch (IOException e) {
             // ignore
@@ -419,7 +436,7 @@ class WebThread extends WebApp implements Runnable {
             return true;
         }
         try {
-            return NetUtils.isLocalAddress(socket);
+            return NetUtils.isLocalAddress(socket.socket());
         } catch (UnknownHostException e) {
             server.traceError(e);
             return false;

@@ -45,12 +45,12 @@ import org.h2.util.StringCache;
  */
 public class Transfer {
 
-    private static final int BUFFER_SIZE = 16 * 1024;
+    protected static final int BUFFER_SIZE = 16 * 1024;
     private static final int LOB_MAGIC = 0x1234;
 
     private Socket socket;
-    private DataInputStream in;
-    private DataOutputStream out;
+    protected DataInputStream in;
+    protected DataOutputStream out;
     private SessionInterface session;
     private boolean ssl;
 

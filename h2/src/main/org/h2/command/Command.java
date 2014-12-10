@@ -21,6 +21,8 @@ import org.h2.result.ResultInterface;
 import org.h2.util.MemoryUtils;
 import org.h2.util.ObjectArray;
 
+import rubah.Rubah;
+
 /**
  * Represents a SQL statement. This object is only used on the server side.
  */
@@ -194,6 +196,8 @@ public abstract class Command implements CommandInterface {
     }
 
     public int executeUpdate() throws SQLException {
+    	if (Rubah.isUpdating())
+    		Rubah.update("waitingForLock");
         long start = startTime = System.currentTimeMillis();
         Database database = session.getDatabase();
         MemoryUtils.allocateReserveMemory();
@@ -209,6 +213,7 @@ public abstract class Command implements CommandInterface {
                         return update();
                     } catch (SQLException e) {
                         if (e.getErrorCode() == ErrorCode.CONCURRENT_UPDATE_1) {
+                        	Rubah.update("waitingForLock");
                             long now = System.currentTimeMillis();
                             if (now - start > session.getLockTimeout()) {
                                 throw Message.getSQLException(ErrorCode.LOCK_TIMEOUT_1, e, "");

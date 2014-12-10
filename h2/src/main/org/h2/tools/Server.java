@@ -21,6 +21,8 @@ import org.h2.server.web.WebServer;
 import org.h2.util.StartBrowser;
 import org.h2.util.Tool;
 
+import rubah.RubahThread;
+
 /**
  * Starts the H2 Console (web-) server, TCP, and PG server.
  * @h2.resource
@@ -345,7 +347,7 @@ public class Server extends Tool implements Runnable, ShutdownHandler {
      */
     public Server start() throws SQLException {
         service.start();
-        Thread t = new Thread(this);
+        Thread t = new RubahThread(this);
         String name = service.getName() + " (" + service.getURL() + ")";
         t.setName(name);
         t.start();

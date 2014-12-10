@@ -6,6 +6,7 @@
  */
 package org.h2.util;
 
+import java.nio.channels.ServerSocketChannel;
 import java.io.IOException;
 import java.net.BindException;
 import java.net.Inet6Address;
@@ -128,6 +129,16 @@ public class NetUtils {
         }
     }
 
+    public static ServerSocketChannel createServerSocketChannel(int port, boolean ssl) throws SQLException {
+        try {
+            return createServerSocketChannelTry(port, ssl);
+        } catch (SQLException e) {
+            // try again
+            return createServerSocketChannelTry(port, ssl);
+        }
+    }
+ 
+
     /**
      * Get the bind address if the system property h2.bindAddress is set, or
      * null if not.
@@ -165,6 +176,24 @@ public class NetUtils {
         }
     }
 
+    private static ServerSocketChannel createServerSocketChannelTry(int port, boolean ssl) throws SQLException {
+        try {
+						ServerSocketChannel ret = ServerSocketChannel.open();
+            InetAddress bindAddress = getBindAddress();
+            if (ssl) {
+								throw new Error("Not implemented");
+            }
+						ret = ServerSocketChannel.open();
+            ret.socket().bind(new InetSocketAddress(bindAddress, port));
+						ret.configureBlocking(false);
+						return ret;
+        } catch (BindException be) {
+            throw Message.getSQLException(ErrorCode.EXCEPTION_OPENING_PORT_2,
+                    be, "" + port, be.toString());
+        } catch (IOException e) {
+            throw Message.convertIOException(e, "port: " + port + " ssl: " + ssl);
+        }
+    }
     /**
      * Check if a socket is connected to a local address.
      *
@@ -199,6 +228,17 @@ public class NetUtils {
         if (socket != null) {
             try {
                 socket.close();
+            } catch (IOException e) {
+                // ignore
+            }
+        }
+        return null;
+    }
+
+    public static ServerSocketChannel closeSilently(ServerSocketChannel channel) {
+        if (channel != null && channel.socket() != null) {
+            try {
+                channel.socket().close();
             } catch (IOException e) {
                 // ignore
             }
