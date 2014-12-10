@@ -6,23 +6,20 @@
  */
 package org.h2.server.web;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.Method;
-import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.channels.SocketChannel;
 import java.security.SecureClassLoader;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -75,28 +72,34 @@ import org.h2.util.StatementBuilder;
 import org.h2.util.StringUtils;
 import org.h2.util.Tool;
 
+import rubah.Rubah;
+import rubah.RubahThread;
+import rubah.UpdateRequestedException;
+import rubah.io.UpdatableInputStream;
+import rubah.io.UpdatableOutputStream;
+
 /**
  * For each connection to a session, an object of this class is created.
  * This class is used by the H2 Console.
  */
-class WebThread extends Thread implements DatabaseEventListener {
+class WebThread extends RubahThread implements DatabaseEventListener {
 
     WebSession session;
     OutputStream output;
     String mimeType;
     long listenerLastEvent;
     int listenerLastState;
-    Socket socket;
+    SocketChannel socket;
     WebServer server;
 
     private Properties attributes;
-    private InputStream input;
+    private UpdatableInputStream input;
     private String ifModifiedSince;
     private boolean cache;
     private boolean stop;
     private String headerLanguage;
 
-    WebThread(Socket socket, WebServer server) {
+    WebThread(SocketChannel socket, WebServer server) {
         this.server = server;
         this.socket = socket;
         setName("H2 Console thread");
@@ -184,15 +187,22 @@ class WebThread extends Thread implements DatabaseEventListener {
         }
         return file;
     }
-
-    public void run() {
+    
+    
+    @Override
+	protected void rubahRun() {
         try {
-            input = new BufferedInputStream(socket.getInputStream());
-            output = new BufferedOutputStream(socket.getOutputStream());
+            input = new UpdatableInputStream(socket);
+            output = new UpdatableOutputStream(socket);
             while (!stop) {
-                if (!process()) {
-                    break;
-                }
+            		Rubah.update("process-web");
+            		try {
+            			if (!process()) {
+            				break;
+            			}
+            		} catch (UpdateRequestedException e) {
+            			continue;
+            		}
             }
         } catch (IOException e) {
             TraceSystem.traceThrowable(e);
@@ -232,7 +242,7 @@ class WebThread extends Thread implements DatabaseEventListener {
                 session = server.getSession(sessionId);
             }
             keepAlive = parseHeader();
-            String hostAddr = socket.getInetAddress().getHostAddress();
+            String hostAddr = socket.socket().getInetAddress().getHostAddress();
             file = processRequest(file, hostAddr);
             if (file.length() == 0) {
                 // asynchronous request
@@ -311,6 +321,14 @@ class WebThread extends Thread implements DatabaseEventListener {
     private String readHeaderLine() throws IOException {
         StringBuilder buff = new StringBuilder();
         while (true) {
+						if (Rubah.isUpdateRequested()) {
+							throw new UpdateRequestedException();
+						}
+						try {
+							this.input.peek();
+						} catch (rubah.io.InterruptedException e) {
+							continue;
+						}
             int i = input.read();
             if (i == -1) {
                 throw new IOException("Unexpected EOF");
@@ -1189,7 +1207,7 @@ class WebThread extends Thread implements DatabaseEventListener {
         }
         try {
             LoginTask login = new LoginTask();
-            Thread t = new Thread(login);
+            Thread t = new RubahThread(login);
             t.start();
         } catch (IOException e) {
             // ignore
@@ -2070,7 +2088,7 @@ class WebThread extends Thread implements DatabaseEventListener {
             return true;
         }
         try {
-            return NetUtils.isLocalAddress(socket);
+            return NetUtils.isLocalAddress(socket.socket());
         } catch (UnknownHostException e) {
             server.traceError(e);
             return false;

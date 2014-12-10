@@ -7,9 +7,12 @@
 package org.h2.server;
 
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -33,6 +36,9 @@ import org.h2.util.MathUtils;
 import org.h2.util.NetUtils;
 import org.h2.util.New;
 import org.h2.util.Tool;
+
+import rubah.Rubah;
+import rubah.RubahThread;
 
 /**
  * The TCP server implements the native H2 database server protocol.
@@ -59,7 +65,7 @@ public class TcpServer implements Service {
     private boolean trace;
     private boolean ssl;
     private boolean stop;
-    private ServerSocket serverSocket;
+    private ServerSocketChannel serverSocket;
     private Set<TcpServerThread> running = Collections.synchronizedSet(new HashSet<TcpServerThread>());
     private String baseDir;
     private boolean allowOthers;
@@ -219,8 +225,8 @@ public class TcpServer implements Service {
 
     public synchronized void start() throws SQLException {
         stop = false;
-        serverSocket = NetUtils.createServerSocket(port, ssl);
-        port = serverSocket.getLocalPort();
+        serverSocket = NetUtils.createServerSocketChannel(port, ssl);
+        port = serverSocket.socket().getLocalPort();
         initManagementDb();
     }
 
@@ -228,11 +234,19 @@ public class TcpServer implements Service {
         listenerThread = Thread.currentThread();
         String threadName = listenerThread.getName();
         try {
+		 				Selector selector = Selector.open();
+		 				serverSocket.register(selector, SelectionKey.OP_ACCEPT);
             while (!stop) {
-                Socket s = serverSocket.accept();
+							Rubah.update("listen");
+ 							SocketChannel s;
+							try {
+								s = Rubah.accept(selector, serverSocket);
+							} catch(rubah.io.InterruptedException e) {
+								continue;
+							}
                 TcpServerThread c = new TcpServerThread(s, this, nextThreadId++);
                 running.add(c);
-                Thread thread = new Thread(c);
+                Thread thread = new RubahThread(c);
                 thread.setName(threadName + " thread");
                 c.setThread(thread);
                 thread.start();

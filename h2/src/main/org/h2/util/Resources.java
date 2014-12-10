@@ -29,7 +29,7 @@ public class Resources {
         loadFromZip();
     }
 
-    private static void loadFromZip() {
+    public static void loadFromZip() {
         InputStream in = Resources.class.getResourceAsStream("data.zip");
         if (in == null) {
             return;
