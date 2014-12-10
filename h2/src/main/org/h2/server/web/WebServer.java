@@ -13,6 +13,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -45,6 +49,8 @@ import org.h2.util.RandomUtils;
 import org.h2.util.Resources;
 import org.h2.util.SortedProperties;
 import org.h2.util.Tool;
+
+import rubah.Rubah;
 
 /**
  * The web server is a simple standalone HTTP server that implements the H2
@@ -124,7 +130,7 @@ public class WebServer implements Service {
     private HashMap<String, WebSession> sessions = New.hashMap();
     private HashSet<String> languages = New.hashSet();
     private String startDateTime;
-    private ServerSocket serverSocket;
+    private ServerSocketChannel serverSocket;
     private String url;
     private ShutdownHandler shutdownHandler;
     private Thread listenerThread;
@@ -293,16 +299,24 @@ public class WebServer implements Service {
     }
 
     public void start() throws SQLException {
-        serverSocket = NetUtils.createServerSocket(port, ssl);
-        port = serverSocket.getLocalPort();
+        serverSocket = NetUtils.createServerSocketChannel(port, ssl);
+        port = serverSocket.socket().getLocalPort();
         updateURL();
     }
 
     public void listen() {
         this.listenerThread = Thread.currentThread();
         try {
+		 				Selector selector = Selector.open();
+		 				serverSocket.register(selector, SelectionKey.OP_ACCEPT);
             while (serverSocket != null) {
-                Socket s = serverSocket.accept();
+	            	Rubah.update("listen-web");
+	 							SocketChannel s;
+								try {
+									s = Rubah.accept(selector, serverSocket);
+								} catch(rubah.io.InterruptedException e) {
+									continue;
+								}
                 WebThread c = new WebThread(s, this);
                 running.add(c);
                 c.start();

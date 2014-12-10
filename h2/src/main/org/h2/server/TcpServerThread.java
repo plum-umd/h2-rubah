@@ -9,7 +9,7 @@ package org.h2.server;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.net.Socket;
+import java.nio.channels.SocketChannel;
 import java.sql.SQLException;
 
 import org.h2.command.Command;
@@ -30,8 +30,12 @@ import org.h2.result.ResultColumn;
 import org.h2.util.ObjectArray;
 import org.h2.util.SmallMap;
 import org.h2.util.StringUtils;
-import org.h2.value.Transfer;
+import org.h2.value.TransferNonblocking;
 import org.h2.value.Value;
+
+import rubah.Rubah;
+import rubah.RubahException;
+import rubah.UpdateRequestedException;
 
 /**
  * One server thread is opened per client connection.
@@ -41,18 +45,25 @@ public class TcpServerThread implements Runnable {
     private Session session;
     private boolean stop;
     private Thread thread;
-    private Transfer transfer;
+    private TransferNonblocking transfer;
     private Command commit;
     private SmallMap cache = new SmallMap(SysProperties.SERVER_CACHED_OBJECTS);
     private int id;
     private int clientVersion;
     private String sessionId;
+		private SocketChannel channel;
 
-    TcpServerThread(Socket socket, TcpServer server, int id) {
+    TcpServerThread(SocketChannel channel, TcpServer server, int id) {
         this.server = server;
         this.id = id;
-        transfer = new Transfer(null);
-        transfer.setSocket(socket);
+				this.channel = channel;
+				try {
+						this.channel.configureBlocking(false);
+				} catch (IOException e) {
+						throw new Error(e);
+				}
+        transfer = new TransferNonblocking(null);
+        transfer.setChannel(channel);
     }
 
     private void trace(String s) {
@@ -61,6 +72,7 @@ public class TcpServerThread implements Runnable {
 
     public void run() {
         try {
+						if (!Rubah.isUpdating()) {
             transfer.init();
             trace("Connect");
             // TODO server: should support a list of allowed databases
@@ -133,18 +145,27 @@ public class TcpServerThread implements Runnable {
                 sendError(e);
                 stop = true;
             }
+						}
             while (!stop) {
                 try {
+										Rubah.update("process");
                     process();
+								} catch (UpdateRequestedException e) {
+										continue;
+								} catch (RubahException e) {
+										throw e;
                 } catch (Throwable e) {
                     sendError(e);
                 }
             }
             trace("Disconnect");
+				} catch (RubahException e) {
+						throw e;
         } catch (Throwable e) {
             server.traceError(e);
         } finally {
-            close();
+						if (!Rubah.isUpdateRequested())
+            	close();
         }
     }
 
@@ -221,8 +242,18 @@ public class TcpServerThread implements Runnable {
         }
     }
 
+    private Command inFlightCommand;
+    private int inFlightOperation;
+    private int inFlightOld;
+
     private void process() throws IOException, SQLException {
-        int operation = transfer.readInt();
+        int operation;
+    	if (!Rubah.isUpdating()) {
+	        operation = transfer.readOperation();
+	        inFlightOperation = operation;
+    	} else {
+    		operation = inFlightOperation;
+    	}
         switch (operation) {
         case SessionRemote.SESSION_PREPARE_READ_PARAMS:
         case SessionRemote.SESSION_PREPARE: {
@@ -299,10 +330,18 @@ public class TcpServerThread implements Runnable {
             break;
         }
         case SessionRemote.COMMAND_EXECUTE_UPDATE: {
-            int id = transfer.readInt();
-            Command command = (Command) cache.getObject(id, false);
-            setParameters(command);
-            int old = session.getModificationId();
+            Command command;
+            int old;
+        	if (!Rubah.isUpdating()) {
+	            int id = transfer.readInt();
+	            command = (Command) cache.getObject(id, false);
+	            setParameters(command);
+	            this.inFlightCommand = command;
+	            old = session.getModificationId();
+        	} else {
+        		command = inFlightCommand;
+        		old = inFlightOld;
+        	}
             int updateCount = command.executeUpdate();
             int status;
             if (session.isClosed()) {
@@ -312,6 +351,7 @@ public class TcpServerThread implements Runnable {
             }
             transfer.writeInt(status).writeInt(updateCount).writeBoolean(session.getAutoCommit());
             transfer.flush();
+            this.inFlightCommand = null;
             break;
         }
         case SessionRemote.COMMAND_CLOSE: {
