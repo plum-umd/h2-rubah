@@ -8,7 +8,7 @@
 		<mkdir dir="docs"/>
 		<delete includeemptydirs="true">
 			<fileset dir="." includes="*.sql,*.txt,*.lock,**/*.db,node*"/>
-			<fileset dir="bin" includes="**/*" excludes="**/*.bat,**/*.sh"/>
+			<fileset dir="bin" includes="**/*" excludes="**/*.bat,**/*.sh,*jar,*desc"/>
 			<fileset dir="docs" includes="**/*"/>
 		</delete>
 	</target>
@@ -30,6 +30,18 @@
 			<fileset dir="src/installer" includes="*.sh"/>
 			<fileset dir="src/test" excludes="**/*.java,**/package.html"/>
 		</copy>
+	</target>
+
+	<target name="analyze" depends="jar">
+		<java classname="rubah.tools.UpdatableJarAnalyzer" dir="." fork="true">
+			<classpath location="ext/servlet-api-2.4.jar" />
+		  <classpath location="ext/lucene-core-2.2.0.jar" />
+		  <classpath location="ext/slf4j-api-1.5.0.jar" />
+		  <classpath location="ext/org.osgi.core-1.2.0.jar" />
+		  <classpath location="ext/rubah-jar-with-dependencies.jar" />
+		  <classpath location="bin/h2-1.2.121.jar" />
+      <arg line="-i bin/h2-1.2.121.jar -o bin/h2-1.2.121.desc"/>
+		</java>
 	</target>
 
     <target name="compileCoverage" depends="compile">
@@ -69,7 +81,7 @@
 		<manifest file="bin/META-INF/MANIFEST.MF" mode="update">
 			<attribute name="Main-Class" value="org.h2.tools.Console"/>
 		</manifest>
-		<jar jarfile="bin/h2.jar" basedir="bin" manifest="bin/META-INF/MANIFEST.MF">
+		<jar jarfile="bin/h2-1.2.121.jar" basedir="bin" manifest="bin/META-INF/MANIFEST.MF">
 			<include name="**/*.*"/>
 			<exclude name="org/h2/build/**/*.*"/>
 			<exclude name="org/h2/dev/**/*.*"/>
@@ -78,7 +90,14 @@
 			<exclude name="**/*.bat"/>
 			<exclude name="**/*.sh"/>
 			<exclude name="**/*.txt"/>
+			<exclude name="**/*.sh"/>
+			<exclude name="**/*.txt"/>
+      <exclude name="**/*.jar"/>
+      <exclude name="**/*.desc"/>
 		</jar>
+	</target>
+
+	<target name="updatableJar" depends="analyze">
 	</target>
 
     <target name="manifest">
