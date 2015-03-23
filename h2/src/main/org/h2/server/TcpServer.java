@@ -230,6 +230,7 @@ public class TcpServer implements Service {
         try {
             while (!stop) {
                 Socket s = serverSocket.accept();
+                s.setTcpNoDelay(true);
                 TcpServerThread c = new TcpServerThread(s, this, nextThreadId++);
                 running.add(c);
                 Thread thread = new Thread(c);
