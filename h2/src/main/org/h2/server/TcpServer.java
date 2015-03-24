@@ -241,6 +241,7 @@ public class TcpServer implements Service {
  							SocketChannel s;
 							try {
 								s = Rubah.accept(selector, serverSocket);
+								s.socket().setTcpNoDelay(true);
 							} catch(rubah.io.InterruptedException e) {
 								continue;
 							}
