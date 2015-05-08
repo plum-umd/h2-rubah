@@ -13,6 +13,8 @@ import java.sql.Statement;
 
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Tests the meta data tables information_schema.locks and sessions.
  */
@@ -41,14 +43,18 @@ public class TestSessionsLocks extends TestBase {
         Connection conn = getConnection("sessionsLocks;MULTI_THREADED=1");
         Statement stat = conn.createStatement();
         ResultSet rs;
+        Test.allowUpdates();
         rs = stat.executeQuery("select * from information_schema.locks order by session_id");
+        Test.disallowUpdates();
         assertFalse(rs.next());
         Connection conn2 = getConnection("sessionsLocks");
         Statement stat2 = conn2.createStatement();
         stat2.execute("create table test(id int primary key, name varchar)");
         conn2.setAutoCommit(false);
         stat2.execute("insert into test values(1, 'Hello')");
+        Test.allowUpdates();
         rs = stat.executeQuery("select * from information_schema.locks order by session_id");
+        Test.disallowUpdates();
         rs.next();
         assertEquals("PUBLIC", rs.getString("TABLE_SCHEMA"));
         assertEquals("TEST", rs.getString("TABLE_NAME"));
@@ -59,10 +65,12 @@ public class TestSessionsLocks extends TestBase {
             assertEquals("WRITE", rs.getString("LOCK_TYPE"));
         }
         assertFalse(rs.next());
+        Test.allowUpdates();
         conn2.commit();
         conn2.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
         stat2.execute("SELECT * FROM TEST");
         rs = stat.executeQuery("select * from information_schema.locks order by session_id");
+        Test.disallowUpdates();
         if (!config.mvcc) {
             rs.next();
             assertEquals("PUBLIC", rs.getString("TABLE_SCHEMA"));
@@ -71,8 +79,10 @@ public class TestSessionsLocks extends TestBase {
             assertEquals("READ", rs.getString("LOCK_TYPE"));
         }
         assertFalse(rs.next());
+        Test.allowUpdates();
         conn2.commit();
         rs = stat.executeQuery("select * from information_schema.locks order by session_id");
+        Test.disallowUpdates();
         assertFalse(rs.next());
         conn.close();
         conn2.close();
@@ -83,6 +93,7 @@ public class TestSessionsLocks extends TestBase {
         Connection conn = getConnection("sessionsLocks;MULTI_THREADED=1");
         Statement stat = conn.createStatement();
         ResultSet rs;
+        Test.allowUpdates();
         rs = stat.executeQuery("select * from information_schema.sessions order by SESSION_START, ID");
         rs.next();
         int sessionId = rs.getInt("ID");
@@ -101,6 +112,7 @@ public class TestSessionsLocks extends TestBase {
         assertTrue(otherId != sessionId);
         assertFalse(rs.next());
         stat2.execute("set throttle 1");
+        Test.disallowUpdates();
         final boolean[] done = new boolean[1];
         Runnable runnable = new Runnable() {
             public void run() {
@@ -115,7 +127,9 @@ public class TestSessionsLocks extends TestBase {
         new Thread(runnable).start();
         while (true) {
             Thread.sleep(100);
+            Test.allowUpdates();
             rs = stat.executeQuery("CALL CANCEL_SESSION(" + otherId + ")");
+            Test.disallowUpdates();
             rs.next();
             if (rs.getBoolean(1)) {
                 for (int i = 0; i < 20; i++) {

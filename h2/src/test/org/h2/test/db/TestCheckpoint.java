@@ -12,6 +12,8 @@ import java.sql.Statement;
 
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Tests the CHECKPOINT SQL statement.
  */
@@ -35,6 +37,7 @@ public class TestCheckpoint extends TestBase {
         Statement s1 = c1.createStatement();
         s1.execute("CREATE TABLE TEST(ID INT PRIMARY KEY, NAME VARCHAR(255))");
         s1.execute("INSERT INTO TEST VALUES(1, 'Hello')");
+        Test.allowUpdates();
         s0.execute("CHECKPOINT");
 
         s1.execute("INSERT INTO TEST VALUES(2, 'World')");
@@ -48,6 +51,7 @@ public class TestCheckpoint extends TestBase {
         s1.execute("INSERT INTO TEST VALUES(5, 'ok yes')");
         s1.execute("COMMIT");
         s0.execute("CHECKPOINT");
+        Test.disallowUpdates();
 
         c0.close();
         c1.close();

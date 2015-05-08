@@ -12,6 +12,8 @@ import java.sql.Statement;
 
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Test for the exclusive mode.
  */
@@ -30,6 +32,7 @@ public class TestExclusive extends TestBase {
         deleteDb("exclusive");
         Connection conn = getConnection("exclusive");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("set exclusive true");
         try {
             Connection conn2 = getConnection("exclusive");
@@ -37,15 +40,19 @@ public class TestExclusive extends TestBase {
             fail();
         } catch (SQLException e) {
             assertKnownException(e);
+        } finally {
+        	Test.disallowUpdates();
         }
 
         stat.execute("set exclusive false");
         Connection conn2 = getConnection("exclusive");
         final Statement stat2 = conn2.createStatement();
+        Test.allowUpdates();
         stat.execute("set exclusive true");
         final int[] state = new int[1];
         Thread t = new Thread() {
-            public void run() {
+            @Override
+			public void run() {
                 try {
                     stat2.execute("select * from dual");
                     if (state[0] != 1) {
@@ -68,10 +75,13 @@ public class TestExclusive extends TestBase {
         }
         assertEquals(2, state[0]);
         stat.execute("set exclusive true");
+        Test.disallowUpdates();
         conn.close();
 
         // check that exclusive mode is off when disconnected
+        Test.allowUpdates();
         stat2.execute("select * from dual");
+        Test.disallowUpdates();
         conn2.close();
         deleteDb("exclusive");
     }

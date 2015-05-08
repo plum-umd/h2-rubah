@@ -30,6 +30,8 @@ import org.h2.util.IOUtils;
 import org.h2.util.ObjectUtils;
 import org.h2.util.StringUtils;
 
+import rubah.test.Test;
+
 /**
  * Tests LOB and CLOB data types.
  */
@@ -100,11 +102,13 @@ public class TestLob extends TestBase {
         deleteDb("lob");
         Connection conn = getConnection("lob");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("CREATE TABLE TEST(ID INT, DATA CLOB)");
         PreparedStatement prep = conn.prepareStatement("INSERT INTO TEST VALUES(1, ?)");
         StringReader reader = new StringReader(new String(new char[100000]));
         prep.setCharacterStream(1, reader, -1);
         prep.execute();
+        Test.disallowUpdates();
         conn.close();
     }
 

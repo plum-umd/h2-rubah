@@ -17,6 +17,8 @@ import org.h2.fulltext.FullText;
 import org.h2.store.fs.FileSystem;
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Fulltext search tests.
  */
@@ -99,8 +101,12 @@ public class TestFullText extends TestBase {
         stat.execute("CREATE ALIAS IF NOT EXISTS FT_INIT FOR \"org.h2.fulltext.FullText.init\"");
         stat.execute("CREATE TABLE TEST(ID INT PRIMARY KEY, NAME VARCHAR)");
         for (int i = 0; i < 10; i++) {
+        	if (i == 5)
+        		Test.allowUpdates();
             FullText.createIndex(conn, "PUBLIC", "TEST", null);
             FullText.dropIndex(conn, "PUBLIC", "TEST");
+        	if (i == 5)
+        		Test.disallowUpdates();
         }
         conn.close();
         deleteDb("fullText");

@@ -17,8 +17,11 @@ import java.sql.Statement;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Random;
+
 import org.h2.constant.ErrorCode;
 import org.h2.test.TestBase;
+
+import rubah.test.Test;
 
 /**
  * Various test cases.
@@ -86,7 +89,9 @@ public class TestCases extends TestBase {
         conn.setAutoCommit(false);
         stat.execute("insert into test select x from system_range(1, 11)");
         stat.execute("delete from test");
+        Test.allowUpdates();
         conn.rollback();
+        Test.disallowUpdates();
         conn.close();
     }
 
@@ -98,7 +103,9 @@ public class TestCases extends TestBase {
         conn.createStatement().execute("insert into test(id) select x from system_range(1, 2)");
         Connection conn2 = getConnection("cases");
         conn2.setAutoCommit(false);
+        Test.allowUpdates();
         assertEquals(2, conn2.createStatement().executeUpdate("delete from test"));
+        Test.disallowUpdates();
         conn2.close();
         conn.close();
 
@@ -109,7 +116,9 @@ public class TestCases extends TestBase {
         conn.setAutoCommit(false);
         conn.createStatement().execute("insert into test select x from system_range(1, 10)");
         conn.createStatement().execute("delete from test");
+        Test.allowUpdates();
         conn.rollback();
+        Test.disallowUpdates();
         conn.close();
     }
 
@@ -119,9 +128,11 @@ public class TestCases extends TestBase {
         Statement stat = conn.createStatement();
         stat.execute("create table parent (pid int)");
         stat.execute("create table child (cid int primary key, pid int)");
+        Test.allowUpdates();
         stat.execute("alter table child add foreign key (pid) references parent(pid)");
         stat.execute("alter table child add column c2 int");
         stat.execute("alter table parent add column p2 varchar");
+        Test.disallowUpdates();
         conn.close();
     }
 
@@ -153,7 +164,9 @@ public class TestCases extends TestBase {
                 "inner join(select n from t where i=?) b on b.n='x'");
         prep.setInt(1, 1);
         prep.setInt(2, 1);
+        Test.allowUpdates();
         prep.execute();
+        Test.disallowUpdates();
         conn.close();
     }
 
@@ -164,14 +177,18 @@ public class TestCases extends TestBase {
         PreparedStatement prep = conn.prepareStatement("CALL ENCRYPT('AES', RAWTOHEX(?), STRINGTOUTF8(?))");
         prep.setCharacterStream(1, new StringReader(key), -1);
         prep.setCharacterStream(2, new StringReader(value), -1);
+        Test.allowUpdates();
         ResultSet rs = prep.executeQuery();
+        Test.disallowUpdates();
         rs.next();
         String encrypted = rs.getString(1);
         PreparedStatement prep2 = conn
                 .prepareStatement("CALL TRIM(CHAR(0) FROM UTF8TOSTRING(DECRYPT('AES', RAWTOHEX(?), ?)))");
         prep2.setCharacterStream(1, new StringReader(key), -1);
         prep2.setCharacterStream(2, new StringReader(encrypted), -1);
+        Test.allowUpdates();
         ResultSet rs2 = prep2.executeQuery();
+        Test.disallowUpdates();
         rs2.first();
         String decrypted = rs2.getString(1);
         prep2.close();
@@ -217,16 +234,32 @@ public class TestCases extends TestBase {
         }
         Random random = new Random(1);
         int len = getSize(50, 500);
-        for (int i = 0; i < len; i++) {
+        int nextUpdate = random.nextInt(len);
+        boolean updateForInsert = false, updateForDelete = false, updateNow = false;
+        for (int i = 0; i < len; i++ , updateNow = false) {
             String table = "t" + random.nextInt(tableCount);
             String sql;
             if (random.nextBoolean()) {
                 sql = "insert into " + table + " values(space(100000))";
+                if (!updateForInsert && i == nextUpdate) {
+                	updateForInsert = true;
+                	updateNow = true;
+                	nextUpdate = random.nextInt(len - i) + i;
+                }
             } else {
                 sql = "delete from " + table;
+                if (!updateForDelete && i == nextUpdate) {
+                	updateForDelete = true;
+                	updateNow = true;
+                	nextUpdate = random.nextInt(len - i) + i;
+                }
             }
+            if (updateNow)
+            	Test.allowUpdates();
             stat.execute(sql);
             stat.execute("script to '" + baseDir + "/test.sql'");
+            if (updateNow)
+            	Test.disallowUpdates();
         }
         conn.close();
     }
@@ -238,7 +271,9 @@ public class TestCases extends TestBase {
         stat.execute("set max_memory_rows 2");
         stat.execute("create table test(id int primary key, x int)");
         stat.execute("insert into test values(0, 0), (1, 1), (2, 2)");
+        Test.allowUpdates();
         stat.execute("delete from test where id not in (select min(x) from test group by id)");
+        Test.disallowUpdates();
         conn.close();
     }
 
@@ -335,9 +370,9 @@ public class TestCases extends TestBase {
     }
 
     private void testDisconnect() throws Exception {
-        if (config.networked || config.codeCoverage) {
-            return;
-        }
+//        if (config.networked || config.codeCoverage) {
+//            return;
+//        }
         deleteDb("cases");
         Connection conn = getConnection("cases");
         final Statement stat = conn.createStatement();
@@ -364,7 +399,9 @@ public class TestCases extends TestBase {
         t.start();
         Thread.sleep(300);
         long time = System.currentTimeMillis();
+        Test.allowUpdates();
         conn.close();
+        Test.disallowUpdates();
         t.join(5000);
         if (stopped[0] == null) {
             fail("query still running");
@@ -382,12 +419,16 @@ public class TestCases extends TestBase {
         deleteDb("cases");
         Connection conn = getConnection("cases");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         ResultSet rs = stat.executeQuery("SELECT ? FROM DUAL {1: 'Hello'}");
+        Test.disallowUpdates();
         rs.next();
         assertEquals("Hello", rs.getString(1));
         assertFalse(rs.next());
 
+        Test.allowUpdates();
         rs = stat.executeQuery("SELECT ? FROM DUAL UNION ALL SELECT ? FROM DUAL {1: 'Hello', 2:'World' }");
+        Test.disallowUpdates();
         rs.next();
         assertEquals("Hello", rs.getString(1));
         rs.next();
@@ -892,11 +933,25 @@ public class TestCases extends TestBase {
         stat.execute("Insert into master values(1,'a'), (2,'b'), (3,'c');");
         stat.execute("Insert into detail values(1,'a'), (2,'b'), (3,'c');");
 
+        Test.allowUpdates();
+        // Give the test a chance to be updated
+        stat.execute("SELECT 'a' AS a");
+
+        if (!Test.updated()) {
+        	// Update should have happened because this is a new feature
+        	// Skip this test
+        	conn.close();
+        	return;
+        }
+
         ResultSet rs = stat.executeQuery(
                 "select master.id, master.name " +
                 "from master " +
                 "where master.id in (select detail.id from detail) " +
                 "order by master.id");
+
+        Test.disallowUpdates();
+
         assertTrue(rs.next());
         assertEquals(1, rs.getInt(1));
         assertTrue(rs.next());

@@ -25,6 +25,8 @@ import org.h2.util.IOUtils;
 import org.h2.util.New;
 import org.h2.util.StringUtils;
 
+import rubah.test.Test;
+
 /**
  * CSVREAD and CSVWRITE tests.
  *
@@ -66,11 +68,13 @@ public class TestCsv extends TestBase {
         stat.execute("create temporary table test (a int, b int, c int)");
         stat.execute("insert into test values(1,2,3)");
         stat.execute("insert into test values(4,null,5)");
+        Test.allowUpdates();
         stat.execute("call csvwrite('"+baseDir+"/test.tsv','select * from test',null,' ')");
         ResultSet rs1 = stat.executeQuery("select * from test");
         assertResultSetOrdered(rs1, new String[][]{new String[]{"1", "2", "3"}, new String[]{"4", null, "5"}});
         ResultSet rs2 = stat.executeQuery("select * from csvread('"+baseDir+"/test.tsv',null,null,' ')");
         assertResultSetOrdered(rs2, new String[][]{new String[]{"1", "2", "3"}, new String[]{"4", null, "5"}});
+        Test.disallowUpdates();
         conn.close();
         FileUtils.delete(f.getAbsolutePath());
     }
@@ -108,11 +112,13 @@ public class TestCsv extends TestBase {
 
         Connection conn = getConnection("csv");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("call csvwrite('" + f.getPath() + "', 'select NULL as a, '''' as b, ''\\N'' as c, NULL as d', 'UTF8', ',', '\"', NULL, '\\N', '\n')");
         FileReader reader = new FileReader(f);
         // on read, an empty string is treated like null,
         // but on write a null is always written with the nullString
         String data = IOUtils.readStringAndClose(reader, -1);
+        Test.disallowUpdates();
         assertEquals(csvContent + "\\N", data.trim());
         conn.close();
 
@@ -136,6 +142,7 @@ public class TestCsv extends TestBase {
             list.add(new String[]{a, b});
             prep.execute();
         }
+        Test.allowUpdates();
         stat.execute("CALL CSVWRITE('" + baseDir + "/test.csv', 'SELECT * FROM test', 'UTF-8', '|', '#')");
         Csv csv = Csv.getInstance();
         csv.setFieldSeparatorRead('|');
@@ -148,6 +155,7 @@ public class TestCsv extends TestBase {
             assertEquals(pair[1], rs.getString(2));
         }
         assertFalse(rs.next());
+        Test.disallowUpdates();
         conn.close();
         FileUtils.delete(baseDir + "/test.csv");
     }
@@ -170,6 +178,7 @@ public class TestCsv extends TestBase {
         f.delete();
         Connection conn = getConnection("csv");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("call csvwrite('"+baseDir+"/test.csv', 'select 1 id, ''Hello'' name', null, '|', '', null, null, chr(10))");
         FileReader reader = new FileReader(baseDir + "/test.csv");
         String text = IOUtils.readStringAndClose(reader, -1).trim();
@@ -184,6 +193,7 @@ public class TestCsv extends TestBase {
         assertEquals("1", rs.getString(1));
         assertEquals("Hello", rs.getString(2));
         assertFalse(rs.next());
+        Test.disallowUpdates();
         conn.close();
         FileUtils.delete(baseDir + "/test.csv");
     }
@@ -196,6 +206,7 @@ public class TestCsv extends TestBase {
         file.close();
         Connection conn = getConnection("csv");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         ResultSet rs = stat.executeQuery("select * from csvread('" + baseDir + "/test.csv', null, null, ';', '''', '\\')");
         ResultSetMetaData meta = rs.getMetaData();
         assertEquals(2, meta.getColumnCount());
@@ -215,6 +226,7 @@ public class TestCsv extends TestBase {
         assertEquals("It's nice", rs.getString(1));
         assertEquals("\nHello*\n", rs.getString(2));
         assertFalse(rs.next());
+        Test.disallowUpdates();
         conn.close();
         FileUtils.delete(baseDir + "/test.csv");
         FileUtils.delete(baseDir + "/test2.csv");
@@ -224,12 +236,14 @@ public class TestCsv extends TestBase {
         deleteDb("csv");
         Connection conn = getConnection("csv");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("call csvwrite('" + baseDir + "/test.csv', 'select 1 id, ''Hello'' name', 'utf-8', '|')");
         ResultSet rs = stat.executeQuery("select * from csvread('" + baseDir + "/test.csv', null, 'utf-8', '|')");
         assertTrue(rs.next());
         assertEquals(1, rs.getInt(1));
         assertEquals("Hello", rs.getString(2));
         assertFalse(rs.next());
+        Test.disallowUpdates();
         new File(baseDir + "/test.csv").delete();
 
         // PreparedStatement prep = conn.prepareStatement("select * from
@@ -247,6 +261,7 @@ public class TestCsv extends TestBase {
         deleteDb("csv");
         Connection conn = getConnection("csv");
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("call csvwrite('" + baseDir + "/test.csv', 'select 1 id, ''Hello'' name')");
         ResultSet rs = stat.executeQuery("select name from csvread('" + baseDir + "/test.csv')");
         assertTrue(rs.next());
@@ -257,6 +272,7 @@ public class TestCsv extends TestBase {
         assertEquals(1, rs.getInt(1));
         assertEquals("Hello", rs.getString(2));
         assertFalse(rs.next());
+        Test.disallowUpdates();
         new File(baseDir + "/test.csv").delete();
         conn.close();
     }
@@ -317,6 +333,7 @@ public class TestCsv extends TestBase {
         for (int i = 0; i < len; i++) {
             stat.execute("INSERT INTO TEST(NAME) VALUES('Ruebezahl')");
         }
+        Test.allowUpdates();
         Csv.getInstance().write(conn, baseDir + "/testRW.csv", "SELECT * FROM TEST", "UTF8");
         ResultSet rs = Csv.getInstance().read(baseDir + "/testRW.csv", null, "UTF8");
         // stat.execute("CREATE ALIAS CSVREAD FOR \"org.h2.tools.Csv.read\"");
@@ -328,6 +345,7 @@ public class TestCsv extends TestBase {
             assertEquals("Ruebezahl", rs.getString("NAME"));
         }
         assertFalse(rs.next());
+        Test.disallowUpdates();
         rs.close();
         conn.close();
         FileUtils.delete(baseDir + "/testRW.csv");
