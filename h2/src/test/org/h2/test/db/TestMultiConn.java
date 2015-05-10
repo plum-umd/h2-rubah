@@ -14,6 +14,8 @@ import java.sql.Statement;
 import org.h2.api.DatabaseEventListener;
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Multi-connection tests.
  */
@@ -45,6 +47,7 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
         stat1.execute("CREATE ALIAS SLEEP FOR \"java.lang.Thread.sleep(long)\"");
         final Statement stat2 = conn2.createStatement();
         stat1.execute("SET THROTTLE 100");
+        Test.allowUpdates();
         new Thread() {
             public void run() {
                 try {
@@ -68,6 +71,7 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
         } catch (SQLException e) {
             // ignore
         }
+        Test.disallowUpdates();
     }
 
     private void testThreeThreads() throws Exception {
@@ -90,6 +94,7 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
         s1.execute("SET LOCK_TIMEOUT 1000");
         s2.execute("SET LOCK_TIMEOUT 1000");
         s3.execute("SET LOCK_TIMEOUT 1000");
+        Test.allowUpdates();
         Thread t1 = new Thread(new Runnable() {
             public void run() {
                 try {
@@ -123,6 +128,7 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
         rs.next();
         assertEquals(5, rs.getInt(1));
         assertFalse(rs.next());
+        Test.disallowUpdates();
         conn1.close();
         conn2.close();
         conn3.close();
@@ -186,6 +192,7 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
         Connection c2 = getConnection("multiConn");
         c1.setAutoCommit(false);
         c2.setAutoCommit(false);
+        Test.allowUpdates();
         Statement s1 = c1.createStatement();
         s1.execute("DROP TABLE IF EXISTS MULTI_A");
         s1.execute("CREATE TABLE MULTI_A(ID INT, NAME VARCHAR(255))");
@@ -200,12 +207,14 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
         s2.execute("INSERT INTO MULTI_B VALUES(1, '1-insert-D')");
         c1.rollback();
         c2.commit();
+        Test.disallowUpdates();
         c1.close();
         c2.close();
 
         if (!config.memory) {
             Connection conn = getConnection("multiConn");
             ResultSet rs;
+            Test.allowUpdates();
             rs = conn.createStatement().executeQuery("SELECT * FROM MULTI_A ORDER BY ID");
             rs.next();
             assertEquals("0-insert-A", rs.getString("NAME"));
@@ -214,6 +223,7 @@ public class TestMultiConn extends TestBase implements DatabaseEventListener {
             rs.next();
             assertEquals("1-insert-D", rs.getString("NAME"));
             assertFalse(rs.next());
+            Test.disallowUpdates();
             conn.close();
         }
 

@@ -12,6 +12,8 @@ import java.sql.SQLException;
 import org.h2.constant.ErrorCode;
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Test the deadlock detection mechanism.
  */
@@ -113,6 +115,7 @@ public class TestDeadlock extends TestBase {
         c1.createStatement().execute("INSERT INTO TEST_A VALUES(1)");
         c2.createStatement().execute("INSERT INTO TEST_B VALUES(1)");
         c3.createStatement().execute("INSERT INTO TEST_C VALUES(1)");
+        Test.allowUpdates();
         DoIt t2 = new DoIt() {
             public void execute() throws SQLException {
                 c1.createStatement().execute("DELETE FROM TEST_B");
@@ -142,6 +145,7 @@ public class TestDeadlock extends TestBase {
         c1.commit();
         c2.commit();
         c3.commit();
+        Test.disallowUpdates();
         c1.createStatement().execute("DROP TABLE TEST_A, TEST_B, TEST_C");
         end();
 

@@ -14,6 +14,8 @@ import java.sql.Statement;
 
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Tests the ALLOW_LITERALS feature (protection against SQL injection).
  */
@@ -34,6 +36,7 @@ public class TestSQLInjection extends TestBase {
     public void test() throws SQLException {
         deleteDb("sqlInjection");
         reconnect("sqlInjection");
+        Test.allowUpdates();
         stat.execute("DROP TABLE IF EXISTS USERS");
         stat.execute("CREATE TABLE USERS(NAME VARCHAR PRIMARY KEY, PASSWORD VARCHAR, TYPE VARCHAR)");
         stat.execute("CREATE SCHEMA CONST");
@@ -73,6 +76,7 @@ public class TestSQLInjection extends TestBase {
         }
         assertTrue(checkPasswordSecure("123456"));
         assertFalse(checkPasswordSecure("' OR ''='"));
+        Test.disallowUpdates();
         conn.close();
 
         if (config.memory) {

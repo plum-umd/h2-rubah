@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import org.h2.store.FileLister;
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Test for big result sets.
  */
@@ -49,12 +51,14 @@ public class TestBigResult extends TestBase {
         int len = getSize(1000, 4000);
         stat.execute("SET MAX_MEMORY_ROWS " + (len / 10));
         stat.execute("CREATE TABLE RECOVERY(TRANSACTION_ID INT, SQL_STMT VARCHAR)");
+        Test.allowUpdates();
         stat.execute("INSERT INTO RECOVERY " +
                 "SELECT X, CASE MOD(X, 2) WHEN 0 THEN 'commit' ELSE 'begin' END " +
                 "FROM SYSTEM_RANGE(1, "+len+")");
         ResultSet rs = stat.executeQuery("SELECT * FROM RECOVERY WHERE SQL_STMT LIKE 'begin%' AND " +
                 "TRANSACTION_ID NOT IN(SELECT TRANSACTION_ID FROM RECOVERY " +
                 "WHERE SQL_STMT='commit' OR SQL_STMT='rollback')");
+        Test.disallowUpdates();
         int count = 0, last = 1;
         while (rs.next()) {
             assertEquals(last, rs.getInt(1));
@@ -71,13 +75,18 @@ public class TestBigResult extends TestBase {
         Statement stat = conn.createStatement();
         int len = getSize(10000, 100000);
         stat.execute("SET MAX_OPERATION_MEMORY 4096");
+        Test.allowUpdates();
         stat.execute("CREATE TABLE TEST AS SELECT * FROM SYSTEM_RANGE(1, " + len + ")");
         stat.execute("UPDATE TEST SET X=X+1");
+        Test.disallowUpdates();
         stat.execute("DELETE FROM TEST");
         conn.close();
     }
 
     private void testCloseConnectionDelete() throws SQLException {
+    	if (config.memory)
+    		return;
+
         deleteDb("bigResult");
         Connection conn = getConnection("bigResult");
         Statement stat = conn.createStatement();
@@ -107,10 +116,12 @@ public class TestBigResult extends TestBase {
         stat.execute("SET MAX_MEMORY_ROWS 100");
         ResultSet rs;
         rs = stat.executeQuery("select id from test order by id limit 10 offset 85");
+        Test.allowUpdates();
         for (int i = 85; rs.next(); i++) {
             assertEquals(i, rs.getInt(1));
         }
         rs = stat.executeQuery("select id from test order by id limit 10 offset 95");
+        Test.allowUpdates();
         for (int i = 95; rs.next(); i++) {
             assertEquals(i, rs.getInt(1));
         }
@@ -118,10 +129,14 @@ public class TestBigResult extends TestBase {
         for (int i = 105; rs.next(); i++) {
             assertEquals(i, rs.getInt(1));
         }
+        Test.disallowUpdates();
         conn.close();
     }
 
     private void testOrderGroup() throws SQLException {
+    	if (config.memory)
+    		return;
+
         deleteDb("bigResult");
         Connection conn = getConnection("bigResult");
         Statement stat = conn.createStatement();
