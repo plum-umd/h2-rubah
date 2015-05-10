@@ -51,6 +51,7 @@ import org.h2.util.SortedProperties;
 import org.h2.util.Tool;
 
 import rubah.Rubah;
+import rubah.RubahException;
 
 /**
  * The web server is a simple standalone HTTP server that implements the H2
@@ -310,8 +311,9 @@ public class WebServer implements Service {
 
     public void listen() {
         this.listenerThread = Thread.currentThread();
+		 				Selector selector = null;
         try {
-		 				Selector selector = Selector.open();
+		 				selector = Selector.open();
 		 				serverSocket.register(selector, SelectionKey.OP_ACCEPT);
             while (serverSocket != null) {
 	            	Rubah.update("listen-web");
@@ -325,6 +327,12 @@ public class WebServer implements Service {
                 running.add(c);
                 c.start();
             }
+        } catch (RubahException e) {
+        	try {
+				selector.close();
+			} catch (IOException e1) {
+			}
+        	throw e;
         } catch (Exception e) {
             trace(e.toString());
         }
