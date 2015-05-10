@@ -38,6 +38,7 @@ import org.h2.util.New;
 import org.h2.util.Tool;
 
 import rubah.Rubah;
+import rubah.RubahException;
 import rubah.RubahThread;
 
 /**
@@ -233,8 +234,9 @@ public class TcpServer implements Service {
     public void listen() {
         listenerThread = Thread.currentThread();
         String threadName = listenerThread.getName();
+        Selector selector = null;
         try {
-		 				Selector selector = Selector.open();
+        selector = Selector.open();
 		 				serverSocket.register(selector, SelectionKey.OP_ACCEPT);
             while (!stop) {
 							Rubah.update("listen");
@@ -253,6 +255,12 @@ public class TcpServer implements Service {
                 thread.start();
             }
             serverSocket = NetUtils.closeSilently(serverSocket);
+        } catch (RubahException e) {
+        	try {
+				selector.close();
+			} catch (IOException e1) {
+			}
+        	throw e;
         } catch (Exception e) {
             if (!stop) {
                 TraceSystem.traceThrowable(e);
