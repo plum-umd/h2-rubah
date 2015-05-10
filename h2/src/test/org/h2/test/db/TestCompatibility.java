@@ -12,7 +12,10 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+
 import org.h2.test.TestBase;
+
+import rubah.test.Test;
 
 /**
  * Tests the compatibility with other databases.
@@ -70,6 +73,7 @@ public class TestCompatibility extends TestBase {
         String columnAlias;
         columnAlias = "MySQL,Regular";
         stat.execute("CREATE TABLE TEST(ID INT)");
+        Test.allowUpdates();
         for (String mode : modes) {
             stat.execute("SET MODE " + mode);
             ResultSet rs = stat.executeQuery("SELECT ID I FROM TEST");
@@ -84,6 +88,7 @@ public class TestCompatibility extends TestBase {
                 fail();
             }
         }
+        Test.disallowUpdates();
         stat.execute("DROP TABLE TEST");
     }
 
@@ -96,7 +101,9 @@ public class TestCompatibility extends TestBase {
             stat.execute("CREATE TABLE TEST(ID INT)");
             stat.execute("CREATE UNIQUE INDEX IDX_ID_U ON TEST(ID)");
             try {
+            	Test.allowUpdates();
                 stat.execute("INSERT INTO TEST VALUES(1), (2), (NULL), (NULL)");
+                Test.disallowUpdates();
                 assertTrue(mode + " mode should not support multiple NULL", multiNull.indexOf(mode) >= 0);
             } catch (SQLException e) {
                 assertTrue(mode + " mode should support multiple NULL", multiNull.indexOf(mode) < 0);
@@ -112,25 +119,32 @@ public class TestCompatibility extends TestBase {
         stat.execute("create unique index i2 on t2(c1, c2)");
         stat.execute("insert into t2 values (null, 1)");
         try {
+        	Test.allowUpdates();
             stat.execute("insert into t2 values (null, 1)");
             fail();
         } catch (SQLException e) {
             assertKnownException(e);
+        } finally {
+        	Test.disallowUpdates();
         }
         stat.execute("insert into t2 values (null, null)");
         stat.execute("insert into t2 values (null, null)");
         stat.execute("insert into t2 values (1, null)");
         try {
+        	Test.allowUpdates();
             stat.execute("insert into t2 values (1, null)");
             fail();
         } catch (SQLException e) {
             assertKnownException(e);
+        } finally {
+        	Test.disallowUpdates();
         }
         stat.execute("DROP TABLE T2");
     }
 
     private void testHsqlDb() throws SQLException {
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("DROP TABLE TEST IF EXISTS; CREATE TABLE TEST(ID INT PRIMARY KEY); ");
         stat.execute("CALL CURRENT_TIME");
         stat.execute("CALL CURRENT_TIMESTAMP");
@@ -145,10 +159,12 @@ public class TestCompatibility extends TestBase {
         prep.setInt(1, 2);
         prep.executeQuery();
         stat.execute("DROP TABLE TEST IF EXISTS");
+        Test.disallowUpdates();
 
     }
 
     private void testMySQL() throws SQLException {
+        Test.allowUpdates();
         Statement stat = conn.createStatement();
         stat.execute("SELECT 1");
         stat.execute("DROP TABLE IF EXISTS TEST");
@@ -159,6 +175,7 @@ public class TestCompatibility extends TestBase {
         assertResult("1196418619", stat, "SELECT UNIX_TIMESTAMP(FROM_UNIXTIME(1196418619))");
         assertResult("2007 November", stat, "SELECT FROM_UNIXTIME(1196300000, '%Y %M')");
         assertResult("2003-12-31", stat, "SELECT DATE('2003-12-31 11:02:03')");
+        Test.disallowUpdates();
 
     }
 

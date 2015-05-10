@@ -17,6 +17,8 @@ import org.h2.constant.ErrorCode;
 import org.h2.test.TestBase;
 import org.h2.util.FileUtils;
 
+import rubah.test.Test;
+
 /**
  * Access rights tests.
  */
@@ -87,12 +89,14 @@ public class TestRights extends TestBase {
         Connection conn = getConnection("rights");
         stat = conn.createStatement();
 
+        Test.allowUpdates();
         stat.execute("CREATE USER IF NOT EXISTS TEST PASSWORD 'TEST'");
         stat.execute("CREATE TABLE TEST(ID INT)");
         stat.execute("GRANT ALL ON TEST TO TEST");
         Connection conn2 = getConnection("rights", "TEST", getPassword("TEST"));
         DatabaseMetaData meta = conn2.getMetaData();
         meta.getTables(null, null, "%", new String[]{"TABLE", "VIEW", "SEQUENCE"});
+        Test.disallowUpdates();
         conn2.close();
         conn.close();
     }
@@ -105,6 +109,7 @@ public class TestRights extends TestBase {
         stat.execute("CREATE TABLE TEST(ID INT)");
         Connection conn2 = getConnection("rights", "READER", getPassword("READER"));
         Statement stat2 = conn2.createStatement();
+        Test.allowUpdates();
         try {
             stat2.execute("SELECT * FROM TEST");
             fail();
@@ -115,6 +120,7 @@ public class TestRights extends TestBase {
         stat2.execute("INSERT INTO MY_TEST VALUES(1)");
         stat2.execute("SELECT * FROM MY_TEST");
         stat2.execute("DROP TABLE MY_TEST");
+        Test.disallowUpdates();
         conn2.close();
         conn.close();
     }
