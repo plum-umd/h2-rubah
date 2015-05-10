@@ -245,6 +245,9 @@ public class TcpServerThread implements Runnable {
     private Command inFlightCommand;
     private int inFlightOperation;
     private int inFlightOld;
+    private int inFlightObjectId;
+    private int inFlightMaxRows;
+    private int inFlightFetchSize;
 
     private void process() throws IOException, SQLException {
         int operation;
@@ -305,13 +308,23 @@ public class TcpServerThread implements Runnable {
             break;
         }
         case SessionRemote.COMMAND_EXECUTE_QUERY: {
-            int id = transfer.readInt();
-            int objectId = transfer.readInt();
-            int maxRows = transfer.readInt();
-            int fetchSize = transfer.readInt();
-            Command command = (Command) cache.getObject(id, false);
-            setParameters(command);
-            int old = session.getModificationId();
+            int objectId, old, maxRows, fetchSize;
+            Command command;
+        	if (!Rubah.isUpdating()) {
+        		int id = transfer.readInt();
+        		this.inFlightObjectId = objectId = transfer.readInt();
+        		this.inFlightMaxRows = maxRows = transfer.readInt();
+        		this.inFlightFetchSize = fetchSize = transfer.readInt();
+        		this.inFlightCommand = command = (Command) cache.getObject(id, false);
+        		setParameters(command);
+        		this.inFlightOld = old = session.getModificationId();
+        	} else {
+        		objectId = this.inFlightObjectId;
+        		maxRows = this.inFlightMaxRows;
+        		fetchSize = this.inFlightFetchSize;
+        		command = this.inFlightCommand;
+        		old = this.inFlightOld;
+        	}
             LocalResult result = command.executeQueryLocal(maxRows);
             cache.addObject(objectId, result);
             int columnCount = result.getVisibleColumnCount();
