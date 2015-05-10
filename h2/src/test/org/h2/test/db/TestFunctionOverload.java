@@ -14,6 +14,8 @@ import java.sql.Statement;
 
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Tests for overloaded user defined functions.
  *
@@ -50,15 +52,19 @@ public class TestFunctionOverload extends TestBase {
     private void testOverloadError() throws SQLException {
         Statement stat = conn.createStatement();
         try {
+        	Test.allowUpdates();
             stat.execute("create alias overloadError for \"" + ME + ".overloadError\"");
             fail();
         } catch (SQLException e) {
             assertKnownException(e);
+        } finally {
+        	Test.disallowUpdates();
         }
     }
 
     private void testControl() throws SQLException {
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("create alias overload0 for \"" + ME + ".overload0\"");
         ResultSet rs = stat.executeQuery("select overload0() from dual");
         assertTrue(rs.next());
@@ -67,10 +73,12 @@ public class TestFunctionOverload extends TestBase {
         rs = meta.getProcedures(null, null, "OVERLOAD0");
         rs.next();
         assertFalse(rs.next());
+        Test.disallowUpdates();
     }
 
     private void testOverload() throws SQLException {
         Statement stat = conn.createStatement();
+        Test.allowUpdates();
         stat.execute("create alias overload1or2 for \"" + ME + ".overload1or2\"");
         ResultSet rs = stat.executeQuery("select overload1or2(1) from dual");
         rs.next();
@@ -86,11 +94,13 @@ public class TestFunctionOverload extends TestBase {
         rs.next();
         assertEquals(2, rs.getInt("NUM_INPUT_PARAMS"));
         assertFalse(rs.next());
+        Test.disallowUpdates();
     }
 
     private void testOverloadNamedArgs() throws SQLException {
         Statement stat = conn.createStatement();
 
+        Test.allowUpdates();
         stat.execute("create alias overload1or2Named for \"" + ME + ".overload1or2(int)\"");
 
         ResultSet rs = stat.executeQuery("select overload1or2Named(1) from dual");
@@ -101,6 +111,7 @@ public class TestFunctionOverload extends TestBase {
 
         try {
             rs = stat.executeQuery("select overload1or2Named(1, 2) from dual");
+            Test.disallowUpdates();
             rs.close();
             fail();
         } catch (SQLException e) {
@@ -113,6 +124,7 @@ public class TestFunctionOverload extends TestBase {
     private void testOverloadWithConnection() throws SQLException {
         Statement stat = conn.createStatement();
 
+        Test.allowUpdates();
         stat.execute("create alias overload1or2WithConn for \"" + ME + ".overload1or2WithConn\"");
 
         ResultSet rs = stat.executeQuery("select overload1or2WithConn(1) from dual");
@@ -125,6 +137,7 @@ public class TestFunctionOverload extends TestBase {
         rs.next();
         assertEquals("2 args", 3, rs.getInt(1));
         assertFalse(rs.next());
+        Test.disallowUpdates();
         rs.close();
 
         stat.close();

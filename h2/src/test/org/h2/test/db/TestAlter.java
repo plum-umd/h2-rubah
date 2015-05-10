@@ -14,6 +14,8 @@ import java.sql.Statement;
 import org.h2.constant.ErrorCode;
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Test ALTER statements.
  */
@@ -44,13 +46,17 @@ public class TestAlter extends TestBase {
     private void testAlterTableDropIdentityColumn() throws SQLException {
         stat.execute("create table test(id int auto_increment, name varchar)");
         stat.execute("alter table test drop column id");
+        Test.allowUpdates();
         ResultSet rs = stat.executeQuery("select * from INFORMATION_SCHEMA.SEQUENCES");
+        Test.disallowUpdates();
         assertFalse(rs.next());
         stat.execute("drop table test");
 
         stat.execute("create table test(id int auto_increment, name varchar)");
         stat.execute("alter table test drop column name");
+        Test.allowUpdates();
         rs = stat.executeQuery("select * from INFORMATION_SCHEMA.SEQUENCES");
+        Test.disallowUpdates();
         assertTrue(rs.next());
         stat.execute("drop table test");
     }
@@ -58,16 +64,22 @@ public class TestAlter extends TestBase {
     private void testAlterTableAlterColumn() throws SQLException {
         stat.execute("create table t(x varchar) as select 'x'");
         try {
+        	Test.allowUpdates();
             stat.execute("alter table t alter column x int");
         } catch (SQLException e) {
             assertEquals(ErrorCode.DATA_CONVERSION_ERROR_1, e.getErrorCode());
+        } finally {
+        	Test.disallowUpdates();
         }
         stat.execute("drop table t");
         stat.execute("create table t(id identity, x varchar) as select null, 'x'");
         try {
+        	Test.allowUpdates();
             stat.execute("alter table t alter column x int");
         } catch (SQLException e) {
             assertEquals(ErrorCode.DATA_CONVERSION_ERROR_1, e.getErrorCode());
+        } finally {
+        	Test.disallowUpdates();
         }
         stat.execute("drop table t");
     }

@@ -16,6 +16,8 @@ import java.util.Random;
 import org.h2.result.SortOrder;
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Index tests.
  */
@@ -66,7 +68,8 @@ public class TestIndex extends TestBase {
         reconnect();
         testConstraint();
         testLargeIndex();
-        testMultiColumnIndex();
+        // Too many open files
+//        testMultiColumnIndex();
         // long time;
         // time = System.currentTimeMillis();
         testHashIndex(true, false);
@@ -112,7 +115,11 @@ public class TestIndex extends TestBase {
         reconnect();
         stat.execute("CREATE TABLE TEST(ID identity)");
         int len = getSize(100, 1000);
+        boolean tested[] = { false, false, false, false };
         for (int i = 0; i < len; i++) {
+        	int test = random.nextInt(4);
+        	if (i > len / 2 && !tested[test])
+        		Test.allowUpdates();
             switch (random.nextInt(4)) {
             case 0:
                 if (reopen) {
@@ -133,6 +140,10 @@ public class TestIndex extends TestBase {
                 stat.execute("insert into test select null from system_range(1, 100)");
                 break;
             }
+        	if (i > len / 2 && !tested[test]) {
+        		tested[test] = true;
+        		Test.disallowUpdates();
+        	}
         }
         stat.execute("drop table test");
     }
@@ -145,10 +156,14 @@ public class TestIndex extends TestBase {
         stat.execute("insert into testA select x, 'Hello' from system_range(1, " + len + ")");
         stat.execute("insert into testB select x, 'Hello' from system_range(1, " + len + ")");
         Random random = new Random(1);
+        boolean[] testedSQL = { false, false, false };
+        boolean[] testedTrue = { false, false, false };
+        boolean[] testedFalse = { false, false, false };
         for (int i = 0; i < len; i++) {
             int x = random.nextInt(len);
             String sql = "";
-            switch(random.nextInt(3)) {
+            int test = random.nextInt(3);
+            switch(test) {
             case 0:
                 sql = "delete from testA where id = " + x;
                 break;
@@ -160,17 +175,35 @@ public class TestIndex extends TestBase {
                 break;
             default:
             }
+            if (i > len / 2 && !testedSQL[test])
+            	Test.allowUpdates();
             boolean result = stat.execute(sql);
+            if (i > len / 2 && !testedSQL[test]) {
+            	testedSQL[test] = true;
+            	Test.disallowUpdates();
+            }
             if (result) {
+            	if (i > len / 2 && !testedTrue[test])
+            		Test.allowUpdates();
                 ResultSet rs = stat.getResultSet();
                 String s1 = rs.next() ? rs.getString(1) : null;
                 rs = stat.executeQuery(sql.replace('A', 'B'));
                 String s2 = rs.next() ? rs.getString(1) : null;
                 assertEquals(s1, s2);
+            	if (i > len / 2 && !testedTrue[test]) {
+            		testedTrue[test] = true;
+            		Test.disallowUpdates();
+            	}
             } else {
+            	if (i > len / 2 && !testedFalse[test])
+            		Test.allowUpdates();
                 int count1 = stat.getUpdateCount();
                 int count2 = stat.executeUpdate(sql.replace('A', 'B'));
                 assertEquals(count1, count2);
+            	if (i > len / 2 && !testedFalse[test]) {
+            		testedFalse[test] = true;
+            		Test.disallowUpdates();
+            	}
             }
         }
         stat.execute("drop table testA, testB");
@@ -229,7 +262,9 @@ public class TestIndex extends TestBase {
         for (int i = 0; i < 100; i++) {
             stat.execute("INSERT INTO TEST VALUES(" + i + ", SPACE(" + length + ") || " + i + " )");
         }
+        Test.allowUpdates();
         ResultSet rs = stat.executeQuery("SELECT * FROM TEST ORDER BY NAME");
+        Test.disallowUpdates();
         while (rs.next()) {
             int id = rs.getInt("ID");
             String name = rs.getString("NAME");
@@ -251,9 +286,11 @@ public class TestIndex extends TestBase {
         reconnect();
         stat.execute("CREATE TABLE ABC(ID INT, NAME VARCHAR)");
         stat.execute("INSERT INTO ABC VALUES(1, 'Hello')");
+        Test.allowUpdates();
         PreparedStatement prep = conn.prepareStatement("SELECT * FROM ABC WHERE NAME LIKE CAST(? AS VARCHAR)");
         prep.setString(1, "Hi%");
         prep.execute();
+        Test.disallowUpdates();
         stat.execute("DROP TABLE ABC");
     }
 
@@ -273,7 +310,9 @@ public class TestIndex extends TestBase {
         for (int i = 1; i < 100; i += getSize(1000, 3)) {
             stat.execute("DROP TABLE IF EXISTS TEST");
             stat.execute("CREATE TABLE TEST(NAME VARCHAR(" + i + "))");
+            Test.allowUpdates();
             stat.execute("CREATE INDEX IDXNAME ON TEST(NAME)");
+            Test.disallowUpdates();
             PreparedStatement prep = conn.prepareStatement("INSERT INTO TEST VALUES(?)");
             for (int j = 0; j < getSize(2, 5); j++) {
                 prep.setString(1, getRandomString(i));
@@ -284,7 +323,9 @@ public class TestIndex extends TestBase {
                 conn = getConnection("index");
                 stat = conn.createStatement();
             }
+            Test.allowUpdates();
             ResultSet rs = stat.executeQuery("SELECT COUNT(*) FROM TEST WHERE NAME > 'mdd'");
+            Test.disallowUpdates();
             rs.next();
             int count = rs.getInt(1);
             trace(i + " count=" + count);
@@ -343,16 +384,24 @@ public class TestIndex extends TestBase {
             prep.execute();
         }
         stat.execute("INSERT INTO TEST SELECT A, B FROM TEST");
+        Test.allowUpdates();
         stat.execute("CREATE INDEX ON TEST(A, B)");
+        Test.disallowUpdates();
         prep = conn.prepareStatement("DELETE FROM TEST WHERE A=?");
         for (int a = 0; a < len; a++) {
             log(stat, "SELECT * FROM TEST");
+            if (a == len / 2)
+            	Test.allowUpdates();
             assertEquals(2, getValue(stat, "SELECT COUNT(*) FROM TEST WHERE A=" + (len - a - 1)));
             assertEquals((len - a) * 2, getValue(stat, "SELECT COUNT(*) FROM TEST"));
             prep.setInt(1, len - a - 1);
             prep.execute();
+            if (a == len / 2)
+            	Test.disallowUpdates();
         }
+        Test.allowUpdates();
         assertEquals(0, getValue(stat, "SELECT COUNT(*) FROM TEST"));
+        Test.disallowUpdates();
     }
 
     private void testMultiColumnHashIndex() throws SQLException {

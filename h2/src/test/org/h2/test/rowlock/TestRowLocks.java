@@ -13,6 +13,8 @@ import java.sql.Statement;
 
 import org.h2.test.TestBase;
 
+import rubah.test.Test;
+
 /**
  * Row level locking tests.
  */
@@ -44,8 +46,10 @@ public class TestRowLocks extends TestBase {
         deleteDb("rowLocks");
         c1 = getConnection("rowLocks");
         Statement stat = c1.createStatement();
+        Test.allowUpdates();
         stat.execute("SET LOCK_MODE 2");
         ResultSet rs = stat.executeQuery("call lock_mode()");
+        Test.disallowUpdates();
         rs.next();
         assertEquals("2", rs.getString(1));
         c1.close();
@@ -65,6 +69,7 @@ public class TestRowLocks extends TestBase {
         c2.setAutoCommit(false);
         s2 = c2.createStatement();
 
+        Test.allowUpdates();
         assertEquals("Hallo", getSingleValue(s1, "SELECT NAME FROM TEST WHERE ID=1"));
         assertEquals("Hello", getSingleValue(s2, "SELECT NAME FROM TEST WHERE ID=1"));
 
@@ -98,6 +103,7 @@ public class TestRowLocks extends TestBase {
         c1.commit();
         assertEquals("H2", getSingleValue(s1, "SELECT NAME FROM TEST WHERE ID=1"));
         assertEquals("H2", getSingleValue(s2, "SELECT NAME FROM TEST WHERE ID=1"));
+        Test.disallowUpdates();
 
         c1.close();
         c2.close();
