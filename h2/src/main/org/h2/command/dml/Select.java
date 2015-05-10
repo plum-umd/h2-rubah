@@ -45,6 +45,8 @@ import org.h2.value.Value;
 import org.h2.value.ValueArray;
 import org.h2.value.ValueNull;
 
+import rubah.Rubah;
+
 /**
  * This class represents a simple SELECT statement.
  *
@@ -305,6 +307,9 @@ public class Select extends Query {
         setCurrentRowNumber(0);
         ValueArray defaultGroup = ValueArray.get(new Value[0]);
         while (topTableFilter.next()) {
+
+        	Rubah.update("query-group");
+
             setCurrentRowNumber(rowNumber + 1);
             if (condition == null || Boolean.TRUE.equals(condition.getBooleanValue(session))) {
                 Value key;
