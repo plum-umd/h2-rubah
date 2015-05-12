@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+
 import org.h2.constant.ErrorCode;
 import org.h2.constant.SysProperties;
 import org.h2.engine.Constants;
@@ -135,7 +136,8 @@ public class Select extends Query {
         return currentGroupRowId;
     }
 
-    public void setOrder(ObjectArray<SelectOrderBy> order) {
+    @Override
+	public void setOrder(ObjectArray<SelectOrderBy> order) {
         orderList = order;
     }
 
@@ -306,6 +308,10 @@ public class Select extends Query {
         int rowNumber = 0;
         setCurrentRowNumber(0);
         ValueArray defaultGroup = ValueArray.get(new Value[0]);
+
+        if (Rubah.isUpdating())
+        	Rubah.update("query-group");
+
         while (topTableFilter.next()) {
 
         	Rubah.update("query-group");
@@ -520,13 +526,15 @@ public class Select extends Query {
         result.addRow(row);
     }
 
-    public LocalResult queryMeta() throws SQLException {
+    @Override
+	public LocalResult queryMeta() throws SQLException {
         LocalResult result = new LocalResult(session, expressions, visibleColumnCount);
         result.done();
         return result;
     }
 
-    protected LocalResult queryWithoutCache(int maxRows) throws SQLException {
+    @Override
+	protected LocalResult queryWithoutCache(int maxRows) throws SQLException {
         int limitRows = maxRows;
         if (limitExpr != null) {
             int l = limitExpr.getValue(session).getInt();
@@ -615,7 +623,8 @@ public class Select extends Query {
         }
     }
 
-    public void init() throws SQLException {
+    @Override
+	public void init() throws SQLException {
         if (SysProperties.CHECK && checkInit) {
             Message.throwInternalError();
         }
@@ -703,7 +712,8 @@ public class Select extends Query {
         checkInit = true;
     }
 
-    public void prepare() throws SQLException {
+    @Override
+	public void prepare() throws SQLException {
         if (isPrepared) {
             // sometimes a subquery is prepared twice (CREATE TABLE AS SELECT)
             return;
@@ -783,11 +793,13 @@ public class Select extends Query {
         isPrepared = true;
     }
 
-    public double getCost() {
+    @Override
+	public double getCost() {
         return cost;
     }
 
-    public HashSet<Table> getTables() {
+    @Override
+	public HashSet<Table> getTables() {
         HashSet<Table> set = New.hashSet();
         for (TableFilter filter : filters) {
             set.add(filter.getTable());
@@ -845,7 +857,8 @@ public class Select extends Query {
         return planCost;
     }
 
-    public String getPlanSQL() {
+    @Override
+	public String getPlanSQL() {
         // can not use the field sqlStatement because the parameter
         // indexes may be incorrect: ? may be in fact ?2 for a subquery
         // but indexes may be set manually as well
@@ -944,7 +957,8 @@ public class Select extends Query {
         return buff.toString();
     }
 
-    public void setDistinct(boolean b) {
+    @Override
+	public void setDistinct(boolean b) {
         distinct = b;
     }
 
@@ -952,7 +966,8 @@ public class Select extends Query {
         this.having = having;
     }
 
-    public int getColumnCount() {
+    @Override
+	public int getColumnCount() {
         return visibleColumnCount;
     }
 
@@ -960,15 +975,18 @@ public class Select extends Query {
         return topTableFilter;
     }
 
-    public ObjectArray<Expression> getExpressions() {
+    @Override
+	public ObjectArray<Expression> getExpressions() {
         return expressions;
     }
 
-    public void setForUpdate(boolean b) {
+    @Override
+	public void setForUpdate(boolean b) {
         this.isForUpdate = b;
     }
 
-    public void mapColumns(ColumnResolver resolver, int level) throws SQLException {
+    @Override
+	public void mapColumns(ColumnResolver resolver, int level) throws SQLException {
         for (Expression e : expressions) {
             e.mapColumns(resolver, level);
         }
@@ -977,7 +995,8 @@ public class Select extends Query {
         }
     }
 
-    public void setEvaluatable(TableFilter tableFilter, boolean b) {
+    @Override
+	public void setEvaluatable(TableFilter tableFilter, boolean b) {
         for (Expression e : expressions) {
             e.setEvaluatable(tableFilter, b);
         }
@@ -997,7 +1016,8 @@ public class Select extends Query {
         return isQuickAggregateQuery;
     }
 
-    public void addGlobalCondition(Parameter param, int columnId, int comparisonType) throws SQLException {
+    @Override
+	public void addGlobalCondition(Parameter param, int columnId, int comparisonType) throws SQLException {
         addParameter(param);
         Expression col = expressions.get(columnId);
         col = col.getNonAliasExpression();
@@ -1032,7 +1052,8 @@ public class Select extends Query {
         }
     }
 
-    public void updateAggregate(Session s) throws SQLException {
+    @Override
+	public void updateAggregate(Session s) throws SQLException {
         for (Expression e : expressions) {
             e.updateAggregate(s);
         }
@@ -1044,7 +1065,8 @@ public class Select extends Query {
         }
     }
 
-    public boolean isEverything(ExpressionVisitor visitor) {
+    @Override
+	public boolean isEverything(ExpressionVisitor visitor) {
         switch(visitor.getType()) {
         case ExpressionVisitor.DETERMINISTIC: {
             for (TableFilter f : filters) {
@@ -1095,11 +1117,13 @@ public class Select extends Query {
         return result;
     }
 
-    public boolean isReadOnly() {
+    @Override
+	public boolean isReadOnly() {
         return isEverything(ExpressionVisitor.READONLY);
     }
 
-    public String getFirstColumnAlias(Session s) {
+    @Override
+	public String getFirstColumnAlias(Session s) {
         if (SysProperties.CHECK) {
             if (visibleColumnCount > 1) {
                 Message.throwInternalError("" + visibleColumnCount);
