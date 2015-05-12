@@ -6,6 +6,8 @@
  */
 package org.h2.command;
 
+import h2.test.Bugs;
+
 import java.sql.SQLException;
 
 import org.h2.constant.ErrorCode;
@@ -69,14 +71,16 @@ public abstract class Command implements CommandInterface {
      *
      * @return true if it is
      */
-    public abstract boolean isQuery();
+    @Override
+	public abstract boolean isQuery();
 
     /**
      * Get the list of parameters.
      *
      * @return the list of parameters
      */
-    public abstract ObjectArray< ? extends ParameterInterface> getParameters();
+    @Override
+	public abstract ObjectArray< ? extends ParameterInterface> getParameters();
 
     /**
      * Check if this command is read only.
@@ -117,11 +121,13 @@ public abstract class Command implements CommandInterface {
         return queryMeta();
     }
 
-    public final ResultInterface getMetaData() throws SQLException {
+    @Override
+	public final ResultInterface getMetaData() throws SQLException {
         return queryMeta();
     }
 
-    public ResultInterface executeQuery(int maxrows, boolean scrollable) throws SQLException {
+    @Override
+	public ResultInterface executeQuery(int maxrows, boolean scrollable) throws SQLException {
         return executeQueryLocal(maxrows);
     }
 
@@ -194,9 +200,11 @@ public abstract class Command implements CommandInterface {
         }
     }
 
-    public int executeUpdate() throws SQLException {
-    	if (Rubah.isUpdating())
-    		Rubah.update("waitingForLock");
+    @Override
+	public int executeUpdate() throws SQLException {
+    	if (!Bugs.WAIT_FOR_LOCK)
+    		if (Rubah.isUpdating())
+    			Rubah.update("waitingForLock");
         long start = startTime = System.currentTimeMillis();
         Database database = session.getDatabase();
         MemoryUtils.allocateReserveMemory();
@@ -212,7 +220,8 @@ public abstract class Command implements CommandInterface {
                         return update();
                     } catch (SQLException e) {
                         if (e.getErrorCode() == ErrorCode.CONCURRENT_UPDATE_1) {
-                        	Rubah.update("waitingForLock");
+                        	if (!Bugs.WAIT_FOR_LOCK)
+                        		Rubah.update("waitingForLock");
                             long now = System.currentTimeMillis();
                             if (now - start > session.getLockTimeout()) {
                                 throw Message.getSQLException(ErrorCode.LOCK_TIMEOUT_1, e, "");
@@ -265,15 +274,18 @@ public abstract class Command implements CommandInterface {
         }
     }
 
-    public void close() {
+    @Override
+	public void close() {
         // nothing to do
     }
 
-    public void cancel() {
+    @Override
+	public void cancel() {
         this.cancel = true;
     }
 
-    public String toString() {
+    @Override
+	public String toString() {
         return TraceObject.toString(sql, getParameters());
     }
 }
